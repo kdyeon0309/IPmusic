@@ -13,6 +13,8 @@ final class NowPlayingMonitor {
     struct Track: Equatable {
         var title: String
         var artist: String
+        /// 애플뮤직 카탈로그 ID (M2 곡 추천용). 로컬 파일/비카탈로그 곡은 nil.
+        var storeID: String?
     }
 
     /// 현재 재생(또는 일시정지) 중인 트랙. 애플뮤직에 재생 큐가 없으면 nil.
@@ -92,9 +94,12 @@ final class NowPlayingMonitor {
         isPlaying = player.playbackState == .playing
 
         if let item = player.nowPlayingItem {
+            // 카탈로그에 없는 곡(로컬 파일 등)은 playbackStoreID가 "0" 또는 빈 문자열
+            let rawID = item.playbackStoreID
             currentTrack = Track(
                 title: item.title ?? "알 수 없는 곡",
-                artist: item.artist ?? "알 수 없는 아티스트"
+                artist: item.artist ?? "알 수 없는 아티스트",
+                storeID: (rawID.isEmpty || rawID == "0") ? nil : rawID
             )
         } else {
             currentTrack = nil

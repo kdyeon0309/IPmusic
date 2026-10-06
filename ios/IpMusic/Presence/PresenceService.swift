@@ -94,8 +94,10 @@ final class PresenceService {
     }
 
     /// 내 now-playing을 서버에 보고한다. 곡/재생 상태가 바뀔 때마다 호출.
-    func report(title: String, artist: String, isPlaying: Bool) {
-        let report = NowPlayingReport(track: title, artist: artist, isPlaying: isPlaying)
+    func report(title: String, artist: String, isPlaying: Bool, storeId: String? = nil) {
+        let report = NowPlayingReport(
+            track: title, artist: artist, isPlaying: isPlaying, storeId: storeId ?? ""
+        )
         lastReport = report
         Task {
             await send(report)
@@ -145,6 +147,7 @@ final class PresenceService {
         switch peek.type {
         case "friend_presence": handlePresence(data)
         case "friend_bubble": handleBubble(data)
+        case "friend_recommendation": handleRecommendation(data)
         default: break
         }
     }
@@ -191,4 +194,52 @@ final class PresenceService {
         guard let push = try? PresenceMessage.decoder.decode(FriendBubblePush.self, from: data) else { return }
         onBubble?(push.fromId, push.text)
     }
+
+    // MARK: - 곡 추천 (M2)
+
+    /// 받은 추천 — 확인(ack)하면 제거된다. 접속 시 서버 pending도 여기로 쌓인다.
+    private(set) var pendingRecommendations: [FriendRecommendation] = []
+
+    /// 친구에게 지금 듣는 곡을 추천한다. 영속 — 오프라인 친구도 다음 접속 시 받는다.
+    func sendRecommendation(to friendId: String, track: String, artist: String, storeId: String?) {
+        let message = RecommendSendMessage(
+            to: friendId, track: track, artist: artist, storeId: storeId ?? ""
+        )
+        Task {
+            await send(message)
+        }
+    }
+
+    /// 추천을 확인 처리한다 — 서버에 ack를 보내고 로컬 목록에서 제거.
+    func ackRecommendation(id: Int) {
+        pendingRecommendations.removeAll { $0.id == id }
+        let message = RecommendationAckMessage(recommendationId: id)
+        Task {
+            await send(message)
+        }
+    }
+
+    private func handleRecommendation(_ data: Data) {
+        guard let push = try? PresenceMessage.decoder.decode(FriendRecommendationPush.self, from: data) else { return }
+        // 재접속 시 pending이 중복으로 올 수 있으므로 id로 멱등 처리
+        guard !pendingRecommendations.contains(where: { $0.id == push.id }) else { return }
+        pendingRecommendations.append(FriendRecommendation(
+            id: push.id,
+            fromId: push.fromId,
+            fromEmoji: push.fromEmoji,
+            track: push.track,
+            artist: push.artist,
+            storeId: push.storeId.isEmpty ? nil : push.storeId
+        ))
+    }
+}
+
+/// 받은 곡 추천 1건 (로컬 표시용).
+struct FriendRecommendation: Identifiable, Hashable {
+    let id: Int
+    let fromId: String
+    let fromEmoji: String
+    let track: String
+    let artist: String
+    let storeId: String?
 }

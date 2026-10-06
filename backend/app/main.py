@@ -16,6 +16,10 @@ logger = logging.getLogger("ipmusic.main")
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         await directory.load_from_db()
+        # DB가 살아 있으면 추천 저장도 DB로 승격 (기본은 인메모리)
+        from app.recommendations import DbRecommendationRepo
+
+        hub.reco_repo = DbRecommendationRepo()
     except Exception as exc:  # DB 미기동 시 개발용 기본값(alice/bob)으로 동작
         logger.warning("DB unavailable, using dev defaults: %s", exc)
     sweeper = asyncio.create_task(hub.sweep_loop())

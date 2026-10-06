@@ -116,7 +116,10 @@ final class AppModel {
     /// 현재 감지 상태를 서버에 자가보고한다.
     private func reportToServer() {
         if let track = monitor.currentTrack {
-            presence.report(title: track.title, artist: track.artist, isPlaying: monitor.isPlaying)
+            presence.report(
+                title: track.title, artist: track.artist,
+                isPlaying: monitor.isPlaying, storeId: track.storeID
+            )
         } else {
             presence.reportStopped()
         }
@@ -139,6 +142,20 @@ final class AppModel {
     func sendBubble(to friendId: String, text: String) {
         presence.sendBubble(to: friendId, text: text)
         showBubble(from: AppConfig.userId, text: text)
+    }
+
+    // MARK: - 곡 추천 (M2)
+
+    /// 지금 듣는 곡을 친구에게 추천한다. 성공하면 내 캐릭터 말풍선으로 로컬 에코.
+    /// - Returns: 추천을 보냈으면 true (지금 듣는 곡이 없으면 false).
+    @discardableResult
+    func recommendCurrentTrack(to friendId: String) -> Bool {
+        guard let track = monitor.currentTrack else { return false }
+        presence.sendRecommendation(
+            to: friendId, track: track.title, artist: track.artist, storeId: track.storeID
+        )
+        showBubble(from: AppConfig.userId, text: "🎁 \(friendId)에게 추천했어요")
+        return true
     }
 
     // MARK: - scenePhase

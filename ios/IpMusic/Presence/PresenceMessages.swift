@@ -31,6 +31,8 @@ struct NowPlayingReport: Encodable {
     var artist: String
     var isPlaying: Bool
     var source = "apple_music"
+    /// 애플뮤직 카탈로그 ID (M2). 없으면 "" — 서버 기본값과 동일.
+    var storeId = ""
     var ts = PresenceMessage.nowISO8601()
 }
 
@@ -62,6 +64,35 @@ struct FriendBubblePush: Decodable {
     var fromId: String
     var fromEmoji: String
     var text: String
+    var ts: String
+}
+
+/// 클라이언트 → 서버: 곡 추천 전송 (M2, 영속 — 오프라인 친구도 다음 접속 시 수신).
+struct RecommendSendMessage: Encodable {
+    var type = "recommend"
+    var to: String
+    var track: String
+    var artist: String
+    var storeId: String
+    var ts = PresenceMessage.nowISO8601()
+}
+
+/// 클라이언트 → 서버: 추천 확인 — 이후 재전달되지 않는다.
+struct RecommendationAckMessage: Encodable {
+    var type = "recommendation_ack"
+    var recommendationId: Int
+    var ts = PresenceMessage.nowISO8601()
+}
+
+/// 서버 → 클라이언트: 친구 곡 추천 push (M2). 접속 시 pending도 이 형태로 온다.
+struct FriendRecommendationPush: Decodable {
+    var type: String
+    var id: Int
+    var fromId: String
+    var fromEmoji: String
+    var track: String
+    var artist: String
+    var storeId: String
     var ts: String
 }
 

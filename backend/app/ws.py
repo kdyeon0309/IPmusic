@@ -14,11 +14,15 @@ from pydantic import BaseModel, ValidationError
 
 from app.config import settings
 from app.presence import PresenceEntry, PresenceStore
+from app.recommendations import PendingRecommendation, RecommendationRepo
 from app.schemas import (
     BubbleSend,
     FriendBubblePush,
     FriendPresencePush,
+    FriendRecommendationPush,
     NowPlayingReport,
+    RecommendationAck,
+    RecommendSend,
     SetCustomization,
     client_message_adapter,
 )
@@ -152,6 +156,8 @@ class PresenceHub:
         self.get_friends = get_friends
         self.get_emoji = get_emoji
         self.get_accessory = get_accessory
+        # 인메모리 기본 — lifespan이 DB 로드 성공 시 DbRecommendationRepo로 교체
+        self.reco_repo: RecommendationRepo = RecommendationRepo()
 
     async def broadcast_playing(self, user_id: str, entry: PresenceEntry) -> None:
         push = FriendPresencePush(
@@ -207,6 +213,34 @@ class PresenceHub:
         )
         await self.manager.send_to(to, push)
 
+    async def _push_recommendation(self, to: str, item: PendingRecommendation) -> None:
+        push = FriendRecommendationPush(
+            id=item.id,
+            from_id=item.sender_id,
+            from_emoji=await self.get_emoji(item.sender_id),
+            track=item.track,
+            artist=item.artist,
+            store_id=item.store_id,
+            ts=datetime.now(timezone.utc),
+        )
+        await self.manager.send_to(to, push)
+
+    async def send_recommendation(
+        self, from_id: str, to: str, track: str, artist: str, store_id: str
+    ) -> None:
+        """추천을 저장하고, 수신자가 온라인이면 즉시 push한다 (오프라인이면 pending)."""
+        if to not in await self.get_friends(from_id):
+            logger.warning("recommendation from %s to non-friend %s ignored", from_id, to)
+            return
+        item = await self.reco_repo.add(from_id, to, track, artist, store_id)
+        if self.manager.is_online(to):
+            await self._push_recommendation(to, item)
+
+    async def send_pending_recommendations(self, user_id: str) -> None:
+        """접속 직후, 미확인 추천을 전달한다 (스냅샷 다음에 호출)."""
+        for item in await self.reco_repo.pending_for(user_id):
+            await self._push_recommendation(user_id, item)
+
     async def mark_stopped(self, user_id: str) -> None:
         """stopped 보고 / disconnect / TTL 만료가 모두 이 경로로 수렴한다."""
         if self.store.remove(user_id) is not None:
@@ -229,6 +263,7 @@ async def ws_endpoint(websocket: WebSocket, user_id: str) -> None:
     hub.manager.connect(user_id, websocket)
     logger.info("connected: %s", user_id)
     await hub.send_snapshot(user_id)
+    await hub.send_pending_recommendations(user_id)
     try:
         while True:
             raw = await websocket.receive_text()
@@ -256,6 +291,12 @@ async def ws_endpoint(websocket: WebSocket, user_id: str) -> None:
                     await hub.broadcast_playing(user_id, entry)
             elif isinstance(message, BubbleSend):
                 await hub.send_bubble(user_id, message.to, message.text)
+            elif isinstance(message, RecommendSend):
+                await hub.send_recommendation(
+                    user_id, message.to, message.track, message.artist, message.store_id
+                )
+            elif isinstance(message, RecommendationAck):
+                await hub.reco_repo.ack(message.recommendation_id, user_id)
             else:  # StoppedReport
                 await hub.mark_stopped(user_id)
     except WebSocketDisconnect:

@@ -85,6 +85,14 @@ struct RoomView: View {
                 if !app.isRealSession {
                     startSessionOverlay
                 }
+
+                // 받은 추천 선물상자 — 방 좌하단 구석
+                RecommendationBox()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .padding(.leading, 24)
+                    .padding(.bottom, 32)
+                    .animation(.spring(duration: 0.4, bounce: 0.4),
+                               value: app.presence.pendingRecommendations)
             }
         }
     }
@@ -155,7 +163,13 @@ struct RoomView: View {
                 bubbleTarget = tappedFriend
                 bubbleDraft = ""
             }
-            // "🎁 지금 듣는 곡 추천하기"는 WU4에서 추가
+            if app.monitor.currentTrack != nil {
+                Button("🎁 지금 듣는 곡 추천하기") {
+                    if let target = tappedFriend {
+                        app.recommendCurrentTrack(to: target.id)
+                    }
+                }
+            }
         }
         .alert(
             "\(bubbleTarget?.id ?? "")에게 말 걸기",

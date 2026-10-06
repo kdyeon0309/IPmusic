@@ -16,6 +16,8 @@ class NowPlayingReport(BaseModel):
     artist: str
     is_playing: bool
     source: Literal["apple_music", "spotify"] = "apple_music"
+    # 애플뮤직 카탈로그 ID (M2) — 없으면 "". 기본값이라 구버전 클라이언트도 유효.
+    store_id: str = ""
     ts: datetime
 
 
@@ -42,8 +44,34 @@ class BubbleSend(BaseModel):
     ts: datetime
 
 
+class RecommendSend(BaseModel):
+    """곡 추천 전송 (M2). 영속 — 수신자가 오프라인이면 다음 접속 시 전달."""
+
+    type: Literal["recommend"]
+    to: str
+    track: str = Field(max_length=256)
+    artist: str = Field(max_length=256)
+    store_id: str = Field(default="", max_length=32)
+    ts: datetime
+
+
+class RecommendationAck(BaseModel):
+    """추천 확인 — 이후 재접속 시 다시 전달되지 않는다."""
+
+    type: Literal["recommendation_ack"]
+    recommendation_id: int
+    ts: datetime
+
+
 ClientMessage = Annotated[
-    Union[NowPlayingReport, StoppedReport, SetCustomization, BubbleSend],
+    Union[
+        NowPlayingReport,
+        StoppedReport,
+        SetCustomization,
+        BubbleSend,
+        RecommendSend,
+        RecommendationAck,
+    ],
     Field(discriminator="type"),
 ]
 
@@ -67,4 +95,15 @@ class FriendBubblePush(BaseModel):
     from_id: str
     from_emoji: str = ""
     text: str
+    ts: datetime
+
+
+class FriendRecommendationPush(BaseModel):
+    type: Literal["friend_recommendation"] = "friend_recommendation"
+    id: int
+    from_id: str
+    from_emoji: str = ""
+    track: str
+    artist: str
+    store_id: str = ""
     ts: datetime
