@@ -33,12 +33,13 @@ final class LiveActivityManager {
     /// strict concurrency 모드에서도 @State 기본값 위치에서 생성 가능하도록 nonisolated로 선언.
     nonisolated init() {}
 
-    /// 목 데이터로 새 Live Activity 세션을 시작한다.
+    /// 새 Live Activity 세션을 시작한다.
     /// - Parameters:
     ///   - characterEmoji: 세션 동안 고정되는 내 캐릭터 이모지.
     ///   - title: 트랙 제목.
     ///   - artist: 아티스트 이름.
-    func start(characterEmoji: String, title: String, artist: String) {
+    ///   - friends: 지금 음악을 듣고 있는 친구들 (기본값 없음).
+    func start(characterEmoji: String, title: String, artist: String, friends: [FriendState] = []) {
         guard activity == nil else {
             return
         }
@@ -52,7 +53,8 @@ final class LiveActivityManager {
             trackTitle: title,
             artistName: artist,
             isPlaying: true,
-            changedAt: Date()
+            changedAt: Date(),
+            friends: friends
         )
 
         do {
@@ -70,12 +72,16 @@ final class LiveActivityManager {
         }
     }
 
-    /// 진행 중인 Live Activity의 트랙 정보를 갱신한다.
+    /// 진행 중인 Live Activity의 트랙/친구 정보를 갱신한다.
+    ///
+    /// 직전 상태와 내용이 같으면 건너뛴다 — Live Activity는 갱신 빈도 예산이 있어
+    /// 잦은 동일 갱신은 시스템이 드롭할 수 있다 (BRIEF 5번).
     /// - Parameters:
     ///   - title: 트랙 제목.
     ///   - artist: 아티스트 이름.
     ///   - isPlaying: 재생 중이면 true, 일시정지면 false.
-    func update(title: String, artist: String, isPlaying: Bool) async {
+    ///   - friends: 지금 음악을 듣고 있는 친구들. nil이면 직전 값을 유지.
+    func update(title: String, artist: String, isPlaying: Bool, friends: [FriendState]? = nil) async {
         guard let activity else {
             return
         }
@@ -84,8 +90,17 @@ final class LiveActivityManager {
             trackTitle: title,
             artistName: artist,
             isPlaying: isPlaying,
-            changedAt: Date()
+            changedAt: Date(),
+            friends: friends ?? lastState?.friends ?? []
         )
+
+        // changedAt만 다르고 내용이 같은 갱신은 skip
+        if var previous = lastState {
+            previous.changedAt = state.changedAt
+            if previous == state {
+                return
+            }
+        }
 
         await activity.update(ActivityContent(state: state, staleDate: nil))
         lastState = state

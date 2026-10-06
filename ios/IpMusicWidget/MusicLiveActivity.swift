@@ -2,9 +2,10 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-/// 친구의 음악 감상 상태를 다이나믹 아일랜드와 잠금 화면에 보여주는 Live Activity.
+/// 음악 감상 상태를 다이나믹 아일랜드와 잠금 화면에 보여주는 Live Activity.
 ///
-/// M0 범위: 본인 캐릭터(이모지)와 현재 트랙 정보만 표시한다.
+/// M1 범위: 본인 캐릭터 + 트랙에 더해, 음악을 듣는 친구가 등장한다.
+/// 접힌 노치(compact)에서도 친구 이모지가 보이는 것이 M1의 핵심 감성.
 struct MusicLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: MusicActivityAttributes.self) { context in
@@ -25,14 +26,22 @@ struct MusicLiveActivity: Widget {
                     ExpandedCenterView(state: context.state)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    ExpandedBottomView(isPlaying: context.state.isPlaying)
+                    ExpandedBottomView(
+                        isPlaying: context.state.isPlaying,
+                        friend: context.state.friends.first
+                    )
                 }
             } compactLeading: {
                 Text(context.attributes.characterEmoji)
             } compactTrailing: {
-                // 위젯 타깃에 액센트 색 에셋이 없어 .tint는 no-op — 명시적 색 사용
-                PlayingIndicator(isPlaying: context.state.isPlaying)
-                    .foregroundStyle(.white)
+                // 친구가 음악을 들으면 접힌 노치에도 친구 캐릭터가 등장한다
+                if let friend = context.state.friends.first {
+                    Text(friend.emoji)
+                } else {
+                    // 위젯 타깃에 액센트 색 에셋이 없어 .tint는 no-op — 명시적 색 사용
+                    PlayingIndicator(isPlaying: context.state.isPlaying)
+                        .foregroundStyle(.white)
+                }
             } minimal: {
                 Text(context.attributes.characterEmoji)
             }
@@ -84,12 +93,29 @@ private struct ExpandedCenterView: View {
     }
 }
 
-/// 다이나믹 아일랜드 확장 상태의 하단 영역(재생 상태 문구).
+/// 다이나믹 아일랜드 확장 상태의 하단 영역.
+///
+/// 친구가 음악을 듣고 있으면 친구 캐릭터 + 곡 한 줄, 없으면 내 재생 상태 문구.
 private struct ExpandedBottomView: View {
     let isPlaying: Bool
+    let friend: FriendState?
 
     var body: some View {
-        HStack {
+        if let friend {
+            HStack(spacing: 6) {
+                Text(friend.emoji)
+                    .font(.title3)
+                Text("\(friend.trackTitle) — \(friend.artistName)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                if !friend.isPlaying {
+                    Image(systemName: "pause.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } else {
             Text(isPlaying ? "듣는 중" : "일시정지")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
