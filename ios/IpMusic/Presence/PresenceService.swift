@@ -132,10 +132,25 @@ final class PresenceService {
         }
     }
 
+    /// 서버 push의 type 필드만 먼저 들여다보기 위한 최소 디코딩용 타입.
+    private struct TypePeek: Decodable {
+        let type: String
+    }
+
+    /// 수신 멀티플렉싱: type을 먼저 읽고 메시지별 핸들러로 분기한다.
+    /// 모르는 타입은 조용히 무시 — 서버가 먼저 새 타입을 추가해도 안전(전방 호환).
     private func handle(_ text: String) {
         guard let data = text.data(using: .utf8),
-              let push = try? PresenceMessage.decoder.decode(FriendPresencePush.self, from: data),
-              push.type == "friend_presence" else { return }
+              let peek = try? PresenceMessage.decoder.decode(TypePeek.self, from: data) else { return }
+        switch peek.type {
+        case "friend_presence": handlePresence(data)
+        case "friend_bubble": handleBubble(data)
+        default: break
+        }
+    }
+
+    private func handlePresence(_ data: Data) {
+        guard let push = try? PresenceMessage.decoder.decode(FriendPresencePush.self, from: data) else { return }
 
         lastPushAt[push.friendId] = Date()
 
@@ -157,5 +172,23 @@ final class PresenceService {
         } else if friends.count < Self.maxFriends {
             friends.append(friend)
         }
+    }
+
+    // MARK: - 말풍선 (M2)
+
+    /// 친구 말풍선 수신 콜백 (fromId, text). AppModel이 배선해 방 UI에 10초 표시한다.
+    var onBubble: ((String, String) -> Void)?
+
+    /// 친구에게 말풍선을 보낸다. 비영속 — 상대가 오프라인이면 서버에서 유실된다.
+    func sendBubble(to friendId: String, text: String) {
+        let message = BubbleSendMessage(to: friendId, text: text)
+        Task {
+            await send(message)
+        }
+    }
+
+    private func handleBubble(_ data: Data) {
+        guard let push = try? PresenceMessage.decoder.decode(FriendBubblePush.self, from: data) else { return }
+        onBubble?(push.fromId, push.text)
     }
 }

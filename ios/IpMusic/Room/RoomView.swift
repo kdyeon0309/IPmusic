@@ -90,16 +90,28 @@ struct RoomView: View {
     }
 
     private var myCharacter: some View {
-        CharacterView(
-            emoji: AppConfig.characterEmoji,
-            name: AppConfig.userId,
-            accessory: CharacterAccessory(rawValue: myAccessory) ?? .none,
-            trackTitle: app.monitor.currentTrack?.title,
-            artistName: app.monitor.currentTrack?.artist,
-            isPlaying: app.monitor.isPlaying,
-            size: 72
-        )
-        .onTapGesture { showCustomizeSheet = true }  // 내 캐릭터 탭 = 꾸미기
+        VStack(spacing: 2) {
+            bubbleSlot(for: AppConfig.userId)
+            CharacterView(
+                emoji: AppConfig.characterEmoji,
+                name: AppConfig.userId,
+                accessory: CharacterAccessory(rawValue: myAccessory) ?? .none,
+                trackTitle: app.monitor.currentTrack?.title,
+                artistName: app.monitor.currentTrack?.artist,
+                isPlaying: app.monitor.isPlaying,
+                size: 72
+            )
+            .onTapGesture { showCustomizeSheet = true }  // 내 캐릭터 탭 = 꾸미기
+        }
+    }
+
+    /// 해당 사용자의 말풍선이 떠 있으면 머리 위에 표시한다 (10초 뒤 AppModel이 지움).
+    @ViewBuilder
+    private func bubbleSlot(for userId: String) -> some View {
+        if let text = app.bubbles[userId] {
+            SpeechBubbleView(text: text)
+                .transition(.scale(scale: 0.5, anchor: .bottom).combined(with: .opacity))
+        }
     }
 
     private var friendsRow: some View {
@@ -111,22 +123,65 @@ struct RoomView: View {
                     .transition(.opacity)
             }
             ForEach(app.roomFriends) { friend in
-                CharacterView(
-                    emoji: friend.emoji,
-                    name: friend.id,
-                    accessory: CharacterAccessory(rawValue: friend.accessory ?? "") ?? .none,
-                    trackTitle: friend.trackTitle,
-                    artistName: friend.artistName,
-                    isPlaying: friend.isPlaying,
-                    size: 56
-                )
+                VStack(spacing: 2) {
+                    bubbleSlot(for: friend.id)
+                    CharacterView(
+                        emoji: friend.emoji,
+                        name: friend.id,
+                        accessory: CharacterAccessory(rawValue: friend.accessory ?? "") ?? .none,
+                        trackTitle: friend.trackTitle,
+                        artistName: friend.artistName,
+                        isPlaying: friend.isPlaying,
+                        size: 56
+                    )
+                    .onTapGesture { tappedFriend = friend }  // 탭 → 말 걸기/추천
+                }
                 .transition(.scale.combined(with: .opacity))
             }
         }
-        // friends 배열이 바뀔 때 삽입/제거에 스프링 애니메이션 적용
+        // friends 배열/말풍선이 바뀔 때 삽입/제거에 스프링 애니메이션 적용
         .animation(.spring(duration: 0.5, bounce: 0.4), value: app.roomFriends)
+        .animation(.spring(duration: 0.4, bounce: 0.35), value: app.bubbles)
         .frame(minHeight: 110)
+        .confirmationDialog(
+            tappedFriend.map { "\($0.emoji) \($0.id)" } ?? "",
+            isPresented: Binding(
+                get: { tappedFriend != nil },
+                set: { if !$0 { tappedFriend = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("💬 말 걸기") {
+                bubbleTarget = tappedFriend
+                bubbleDraft = ""
+            }
+            // "🎁 지금 듣는 곡 추천하기"는 WU4에서 추가
+        }
+        .alert(
+            "\(bubbleTarget?.id ?? "")에게 말 걸기",
+            isPresented: Binding(
+                get: { bubbleTarget != nil },
+                set: { if !$0 { bubbleTarget = nil } }
+            )
+        ) {
+            TextField("최대 50자", text: $bubbleDraft)
+            Button("보내기") {
+                if let target = bubbleTarget {
+                    let text = String(bubbleDraft.prefix(50))
+                    if !text.isEmpty { app.sendBubble(to: target.id, text: text) }
+                }
+            }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text("지금 접속 중인 친구에게만 전달돼요")
+        }
     }
+
+    /// 탭한 친구 (confirmationDialog 트리거).
+    @State private var tappedFriend: FriendState?
+    /// 말풍선 입력 대상/초안 (alert 트리거).
+    @State private var bubbleTarget: FriendState?
+    @State private var bubbleDraft = ""
 
     // MARK: - 세션 시작 오버레이
 

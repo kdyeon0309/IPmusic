@@ -10,11 +10,13 @@ from datetime import datetime, timezone
 from typing import Awaitable, Callable
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from app.config import settings
 from app.presence import PresenceEntry, PresenceStore
 from app.schemas import (
+    BubbleSend,
+    FriendBubblePush,
     FriendPresencePush,
     NowPlayingReport,
     SetCustomization,
@@ -123,7 +125,7 @@ class ConnectionManager:
     def is_online(self, user_id: str) -> bool:
         return user_id in self._sockets
 
-    async def send_to(self, user_id: str, message: FriendPresencePush) -> None:
+    async def send_to(self, user_id: str, message: BaseModel) -> None:
         websocket = self._sockets.get(user_id)
         if websocket is None:
             return
@@ -192,6 +194,19 @@ class PresenceHub:
             )
             await self.manager.send_to(user_id, push)
 
+    async def send_bubble(self, from_id: str, to: str, text: str) -> None:
+        """말풍선을 수신자에게 push한다. 친구가 아니면 무시, 오프라인이면 drop (비영속)."""
+        if to not in await self.get_friends(from_id):
+            logger.warning("bubble from %s to non-friend %s ignored", from_id, to)
+            return
+        push = FriendBubblePush(
+            from_id=from_id,
+            from_emoji=await self.get_emoji(from_id),
+            text=text,
+            ts=datetime.now(timezone.utc),
+        )
+        await self.manager.send_to(to, push)
+
     async def mark_stopped(self, user_id: str) -> None:
         """stopped 보고 / disconnect / TTL 만료가 모두 이 경로로 수렴한다."""
         if self.store.remove(user_id) is not None:
@@ -239,6 +254,8 @@ async def ws_endpoint(websocket: WebSocket, user_id: str) -> None:
                 entry = hub.store.get(user_id)
                 if entry is not None:
                     await hub.broadcast_playing(user_id, entry)
+            elif isinstance(message, BubbleSend):
+                await hub.send_bubble(user_id, message.to, message.text)
             else:  # StoppedReport
                 await hub.mark_stopped(user_id)
     except WebSocketDisconnect:

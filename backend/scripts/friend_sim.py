@@ -7,6 +7,7 @@ bob(기본값)으로 WS에 접속해 now_playing을 보고한다. 실기기에�
   uv run python scripts/friend_sim.py --track "밤편지" --artist "아이유"
   uv run python scripts/friend_sim.py --stop            # stopped 보고 후 종료
   uv run python scripts/friend_sim.py --listen          # 수신만 (상대편 역할 확인용)
+  uv run python scripts/friend_sim.py --bubble "안녕!"   # 말풍선 전송 후 종료 (--to alice)
 Ctrl+C로 종료하면 WS가 끊기며 서버가 즉시 퇴장 처리한다.
 """
 
@@ -44,6 +45,14 @@ async def run(args: argparse.Namespace) -> None:
             if args.listen:
                 await listener
                 return
+            if args.bubble:
+                await ws.send(json.dumps(
+                    {"type": "bubble", "to": args.to, "text": args.bubble, "ts": now_iso()},
+                    ensure_ascii=False,
+                ))
+                print(f"-> bubble to {args.to}: {args.bubble}")
+                await asyncio.sleep(2)  # 혹시 올 응답/push 출력 시간
+                return
             report = {
                 "type": "now_playing",
                 "track": args.track,
@@ -71,6 +80,8 @@ def main() -> None:
     parser.add_argument("--url", default="ws://localhost:8000")
     parser.add_argument("--stop", action="store_true", help="stopped 보고 후 종료")
     parser.add_argument("--listen", action="store_true", help="보고 없이 수신만")
+    parser.add_argument("--bubble", help="말풍선 텍스트 전송 후 종료")
+    parser.add_argument("--to", default="alice", help="말풍선/추천 수신자 (기본 alice)")
     args = parser.parse_args()
     with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(run(args))

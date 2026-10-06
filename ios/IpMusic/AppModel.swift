@@ -24,6 +24,11 @@ final class AppModel {
     /// 방(RoomView)에 그릴 친구들 — 실제 presence + 목 데모 친구.
     var roomFriends: [FriendState] { presence.friends + mockFriends }
 
+    /// 캐릭터 머리 위 말풍선 (userId → 텍스트). 10초 뒤 자동 소멸.
+    /// 내 로컬 에코는 AppConfig.userId 키로 들어간다.
+    private(set) var bubbles: [String: String] = [:]
+    private var bubbleTasks: [String: Task<Void, Never>] = [:]
+
     nonisolated init() {}
 
     // MARK: - 세션 시작/종료
@@ -42,6 +47,9 @@ final class AppModel {
         isRealSession = manager.isSessionActive
         if isRealSession {
             // 서버 연결 + 현재 곡 첫 보고 (친구 수신도 이 연결로 들어온다)
+            presence.onBubble = { [weak self] fromId, text in
+                self?.showBubble(from: fromId, text: text)
+            }
             presence.connect()
             reportToServer()
         } else {
@@ -112,6 +120,25 @@ final class AppModel {
         } else {
             presence.reportStopped()
         }
+    }
+
+    // MARK: - 말풍선 (M2)
+
+    /// 말풍선을 띄우고 10초 뒤 지운다. 같은 사람이 연달아 보내면 타이머를 리셋.
+    func showBubble(from userId: String, text: String) {
+        bubbles[userId] = text
+        bubbleTasks[userId]?.cancel()
+        bubbleTasks[userId] = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(10))
+            guard let self, !Task.isCancelled else { return }
+            self.bubbles[userId] = nil
+        }
+    }
+
+    /// 친구에게 말풍선을 보내고, 내 캐릭터 위에도 로컬 에코를 띄운다.
+    func sendBubble(to friendId: String, text: String) {
+        presence.sendBubble(to: friendId, text: text)
+        showBubble(from: AppConfig.userId, text: text)
     }
 
     // MARK: - scenePhase

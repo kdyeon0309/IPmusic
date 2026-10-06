@@ -48,6 +48,23 @@ struct SetCustomizationMessage: Encodable {
     var ts = PresenceMessage.nowISO8601()
 }
 
+/// 클라이언트 → 서버: 말풍선 전송 (M2, 최대 50자 — 초과 시 서버가 무시).
+struct BubbleSendMessage: Encodable {
+    var type = "bubble"
+    var to: String
+    var text: String
+    var ts = PresenceMessage.nowISO8601()
+}
+
+/// 서버 → 클라이언트: 친구 말풍선 push (M2).
+struct FriendBubblePush: Decodable {
+    var type: String
+    var fromId: String
+    var fromEmoji: String
+    var text: String
+    var ts: String
+}
+
 /// 서버 → 클라이언트: 친구 presence push.
 struct FriendPresencePush: Decodable {
     var type: String

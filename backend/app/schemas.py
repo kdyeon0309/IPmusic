@@ -33,8 +33,17 @@ class SetCustomization(BaseModel):
     ts: datetime
 
 
+class BubbleSend(BaseModel):
+    """말풍선 전송 (M2). 비영속 — 수신자가 오프라인이면 유실된다 (영속화는 M3 메신저)."""
+
+    type: Literal["bubble"]
+    to: str
+    text: str = Field(min_length=1, max_length=50)
+    ts: datetime
+
+
 ClientMessage = Annotated[
-    Union[NowPlayingReport, StoppedReport, SetCustomization],
+    Union[NowPlayingReport, StoppedReport, SetCustomization, BubbleSend],
     Field(discriminator="type"),
 ]
 
@@ -50,4 +59,12 @@ class FriendPresencePush(BaseModel):
     track: str = ""
     artist: str = ""
     is_playing: bool = False
+    ts: datetime
+
+
+class FriendBubblePush(BaseModel):
+    type: Literal["friend_bubble"] = "friend_bubble"
+    from_id: str
+    from_emoji: str = ""
+    text: str
     ts: datetime
