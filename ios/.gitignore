@@ -1,0 +1,14 @@
+# XcodeGen-generated project
+*.xcodeproj/
+
+# Build artifacts
+DerivedData/
+build/
+xcuserdata/
+
+# macOS
+.DS_Store
+
+# Generated Info.plist files (derived from project.yml via XcodeGen)
+IpMusic/Info.plist
+IpMusicWidget/Info.plist
