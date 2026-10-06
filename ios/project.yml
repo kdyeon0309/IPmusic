@@ -28,6 +28,10 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSSupportsLiveActivities: true
+        # 로컬 개발 서버(ws://localhost, ws://<Mac LAN IP>) 접속 허용 — 숫자 IP에는
+        # 원래 ATS가 적용되지 않지만, .local 호스트명 등 환경 차이에 대비해 명시한다.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         NSAppleMusicUsageDescription: "친구에게 보여줄 내 재생 중인 곡을 감지하기 위해 필요합니다."
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
