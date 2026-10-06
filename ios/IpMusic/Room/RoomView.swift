@@ -6,6 +6,11 @@ import SwiftUI
 struct RoomView: View {
     @Environment(AppModel.self) private var app
 
+    @AppStorage("myAccessory") private var myAccessory = ""
+    @AppStorage("myRoomTheme") private var myRoomTheme = RoomTheme.cream.rawValue
+
+    private var theme: RoomTheme { RoomTheme(rawValue: myRoomTheme) ?? .cream }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -18,6 +23,13 @@ struct RoomView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        showCustomizeSheet = true
+                    } label: {
+                        Image(systemName: "paintpalette")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         showDebugPanel = true
                     } label: {
                         Image(systemName: "gearshape")
@@ -27,20 +39,22 @@ struct RoomView: View {
             .sheet(isPresented: $showDebugPanel) {
                 DebugPanelView()
             }
+            .sheet(isPresented: $showCustomizeSheet) {
+                CustomizeSheet()
+            }
+            // night 같은 어두운 테마에서 텍스트 대비 유지
+            .environment(\.colorScheme, theme.isDark ? .dark : .light)
         }
     }
 
     @State private var showDebugPanel = false
+    @State private var showCustomizeSheet = false
 
-    // MARK: - 배경 (WU2에서 RoomTheme으로 교체)
+    // MARK: - 배경 (테마)
 
     private var background: some View {
-        LinearGradient(
-            colors: [Color(red: 1.0, green: 0.97, blue: 0.9),
-                     Color(red: 0.98, green: 0.9, blue: 0.82)],
-            startPoint: .top, endPoint: .bottom
-        )
-        .ignoresSafeArea()
+        LinearGradient(colors: theme.wallColors, startPoint: .top, endPoint: .bottom)
+            .ignoresSafeArea()
     }
 
     // MARK: - 방 (바닥 + 캐릭터)
@@ -50,7 +64,7 @@ struct RoomView: View {
             ZStack {
                 // 방 바닥 — 하단 1/3
                 RoundedRectangle(cornerRadius: 32)
-                    .fill(Color(red: 0.93, green: 0.84, blue: 0.72))
+                    .fill(theme.floorColor)
                     .frame(height: geo.size.height * 0.38)
                     .frame(maxHeight: .infinity, alignment: .bottom)
                     .ignoresSafeArea(edges: .bottom)
@@ -79,11 +93,13 @@ struct RoomView: View {
         CharacterView(
             emoji: AppConfig.characterEmoji,
             name: AppConfig.userId,
+            accessory: CharacterAccessory(rawValue: myAccessory) ?? .none,
             trackTitle: app.monitor.currentTrack?.title,
             artistName: app.monitor.currentTrack?.artist,
             isPlaying: app.monitor.isPlaying,
             size: 72
         )
+        .onTapGesture { showCustomizeSheet = true }  // 내 캐릭터 탭 = 꾸미기
     }
 
     private var friendsRow: some View {
@@ -98,6 +114,7 @@ struct RoomView: View {
                 CharacterView(
                     emoji: friend.emoji,
                     name: friend.id,
+                    accessory: CharacterAccessory(rawValue: friend.accessory ?? "") ?? .none,
                     trackTitle: friend.trackTitle,
                     artistName: friend.artistName,
                     isPlaying: friend.isPlaying,

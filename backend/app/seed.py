@@ -20,8 +20,9 @@ async def seed() -> None:
             insert(User)
             .values(
                 [
-                    {"id": "alice", "character_emoji": "🐰"},
-                    {"id": "bob", "character_emoji": "🐸"},
+                    {"id": "alice", "character_emoji": "🐰", "accessory": "", "room_theme": "cream"},
+                    # bob에 악세사리를 줘야 수신 렌더링(친구 머리 위 🧢)을 검증할 수 있다
+                    {"id": "bob", "character_emoji": "🐸", "accessory": "cap", "room_theme": "mint"},
                 ]
             )
             .on_conflict_do_nothing()

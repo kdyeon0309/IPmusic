@@ -39,6 +39,24 @@ final class PresenceService {
         client.connect(to: AppConfig.wsURL)
         startHeartbeat()
         reconcileAfterSnapshot()
+        resendMyCustomization()
+    }
+
+    /// 접속할 때마다 저장된 내 꾸미기를 1회 재전송한다 — 서버가 재시작해
+    /// 메모리 Directory가 초기화됐어도 멱등하게 복구된다.
+    private func resendMyCustomization() {
+        let defaults = UserDefaults.standard
+        guard let accessory = defaults.string(forKey: "myAccessory") else { return }
+        let theme = defaults.string(forKey: "myRoomTheme") ?? "cream"
+        sendCustomization(accessory: accessory, roomTheme: theme)
+    }
+
+    /// 내 캐릭터 꾸미기 변경을 서버에 보낸다 (저장은 호출 측 @AppStorage 몫).
+    func sendCustomization(accessory: String, roomTheme: String) {
+        let message = SetCustomizationMessage(accessory: accessory, roomTheme: roomTheme)
+        Task {
+            await send(message)
+        }
     }
 
     /// 접속 직후 서버가 보내는 스냅샷이 도착할 시간을 준 뒤, 스냅샷으로 재확인되지
@@ -129,6 +147,7 @@ final class PresenceService {
         let friend = FriendState(
             id: push.friendId,
             emoji: push.emoji,
+            accessory: push.accessory ?? "",
             trackTitle: push.track,
             artistName: push.artist,
             isPlaying: push.isPlaying

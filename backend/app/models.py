@@ -11,6 +11,9 @@ class User(Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     character_emoji: Mapped[str] = mapped_column(String(16), default="🎵")
+    # M2 꾸미기: 악세사리 프리셋 코드("" = 없음)와 방 테마. 렌더링 매핑은 클라이언트가 가진다.
+    accessory: Mapped[str] = mapped_column(String(32), default="", server_default="")
+    room_theme: Mapped[str] = mapped_column(String(32), default="cream", server_default="cream")
 
 
 class Friendship(Base):

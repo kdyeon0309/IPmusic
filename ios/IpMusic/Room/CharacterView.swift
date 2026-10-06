@@ -5,6 +5,7 @@ import SwiftUI
 struct CharacterView: View {
     let emoji: String
     let name: String
+    var accessory: CharacterAccessory = .none
     var trackTitle: String? = nil
     var artistName: String? = nil
     var isPlaying: Bool = false
@@ -12,9 +13,19 @@ struct CharacterView: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            Text(emoji)
-                .font(.system(size: size))
-                .shadow(color: .black.opacity(0.15), radius: 6, y: 4)
+            ZStack {
+                Text(emoji)
+                    .font(.system(size: size))
+                    .shadow(color: .black.opacity(0.15), radius: 6, y: 4)
+                if let overlay = accessory.overlayEmoji {
+                    Text(overlay)
+                        .font(.system(size: size * 0.45))
+                        .offset(
+                            x: size * accessory.offsetRatio.width,
+                            y: size * accessory.offsetRatio.height
+                        )
+                }
+            }
 
             Text(name)
                 .font(.caption.weight(.semibold))
@@ -49,8 +60,10 @@ struct CharacterView: View {
 
 #Preview {
     HStack(spacing: 24) {
-        CharacterView(emoji: "🐰", name: "alice", trackTitle: "Ditto", artistName: "NewJeans", isPlaying: true)
-        CharacterView(emoji: "🐸", name: "bob", trackTitle: "밤편지", artistName: "아이유", isPlaying: true, size: 52)
+        CharacterView(emoji: "🐰", name: "alice", accessory: .ribbon,
+                      trackTitle: "Ditto", artistName: "NewJeans", isPlaying: true)
+        CharacterView(emoji: "🐸", name: "bob", accessory: .cap,
+                      trackTitle: "밤편지", artistName: "아이유", isPlaying: true, size: 52)
     }
     .padding()
 }

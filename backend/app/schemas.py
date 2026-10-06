@@ -24,8 +24,17 @@ class StoppedReport(BaseModel):
     ts: datetime
 
 
+class SetCustomization(BaseModel):
+    """내 캐릭터 꾸미기 변경 (M2). 서버는 저장·전파만 하고 코드 해석은 클라이언트 몫."""
+
+    type: Literal["set_customization"]
+    accessory: str = Field(default="", max_length=32)
+    room_theme: str = Field(default="cream", max_length=32)
+    ts: datetime
+
+
 ClientMessage = Annotated[
-    Union[NowPlayingReport, StoppedReport],
+    Union[NowPlayingReport, StoppedReport, SetCustomization],
     Field(discriminator="type"),
 ]
 
@@ -37,6 +46,7 @@ class FriendPresencePush(BaseModel):
     event: Literal["playing", "stopped"]
     friend_id: str
     emoji: str = ""
+    accessory: str = ""
     track: str = ""
     artist: str = ""
     is_playing: bool = False

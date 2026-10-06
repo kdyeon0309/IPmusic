@@ -14,7 +14,12 @@ from pydantic import ValidationError
 
 from app.config import settings
 from app.presence import PresenceEntry, PresenceStore
-from app.schemas import FriendPresencePush, NowPlayingReport, client_message_adapter
+from app.schemas import (
+    FriendPresencePush,
+    NowPlayingReport,
+    SetCustomization,
+    client_message_adapter,
+)
 
 logger = logging.getLogger("ipmusic.ws")
 
@@ -22,6 +27,7 @@ router = APIRouter()
 
 GetFriends = Callable[[str], Awaitable[list[str]]]
 GetEmoji = Callable[[str], Awaitable[str]]
+GetAccessory = Callable[[str], Awaitable[str]]
 
 
 class Directory:
@@ -33,6 +39,10 @@ class Directory:
     def __init__(self) -> None:
         self.friends: dict[str, list[str]] = {"alice": ["bob"], "bob": ["alice"]}
         self.emojis: dict[str, str] = {"alice": "🐰", "bob": "🐸"}
+        self.accessories: dict[str, str] = {}
+        # DB 영속 여부 — lifespan의 load_from_db 성공 시에만 켜진다.
+        # (테스트/개발 모드에선 메모리로만 동작. WS 핸들러가 DB를 기다리다 멈추는 일 방지)
+        self.persist = False
 
     async def load_from_db(self) -> None:
         from sqlalchemy import select
@@ -44,13 +54,43 @@ class Directory:
             users = (await session.execute(select(User))).scalars().all()
             pairs = (await session.execute(select(Friendship))).scalars().all()
         emojis = {u.id: u.character_emoji for u in users}
+        accessories = {u.id: u.accessory for u in users}
         friends: dict[str, list[str]] = {u.id: [] for u in users}
         for pair in pairs:
             friends.setdefault(pair.user_a, []).append(pair.user_b)
             friends.setdefault(pair.user_b, []).append(pair.user_a)
         self.emojis = emojis
+        self.accessories = accessories
         self.friends = friends
+        self.persist = True
         logger.info("directory loaded from DB: %d users, %d pairs", len(users), len(pairs))
+
+    async def set_customization(self, user_id: str, accessory: str, room_theme: str) -> None:
+        """꾸미기 변경을 메모리에 반영하고, DB 모드면 upsert한다 (실패해도 메모리로 동작)."""
+        self.accessories[user_id] = accessory
+        if not self.persist:
+            return
+        try:
+            from sqlalchemy.dialects.postgresql import insert
+
+            from app.db import SessionLocal
+            from app.models import User
+
+            async def _upsert() -> None:
+                async with SessionLocal() as session:
+                    stmt = insert(User).values(
+                        id=user_id, accessory=accessory, room_theme=room_theme
+                    )
+                    stmt = stmt.on_conflict_do_update(
+                        index_elements=[User.id],
+                        set_={"accessory": accessory, "room_theme": room_theme},
+                    )
+                    await session.execute(stmt)
+                    await session.commit()
+
+            await asyncio.wait_for(_upsert(), timeout=5)
+        except Exception:
+            logger.warning("customization DB save failed for %s", user_id)
 
 
 directory = Directory()
@@ -62,6 +102,10 @@ async def _default_get_friends(user_id: str) -> list[str]:
 
 async def _default_get_emoji(user_id: str) -> str:
     return directory.emojis.get(user_id, "🎵")
+
+
+async def _default_get_accessory(user_id: str) -> str:
+    return directory.accessories.get(user_id, "")
 
 
 class ConnectionManager:
@@ -99,17 +143,20 @@ class PresenceHub:
         manager: ConnectionManager | None = None,
         get_friends: GetFriends = _default_get_friends,
         get_emoji: GetEmoji = _default_get_emoji,
+        get_accessory: GetAccessory = _default_get_accessory,
     ) -> None:
         self.store = store or PresenceStore()
         self.manager = manager or ConnectionManager()
         self.get_friends = get_friends
         self.get_emoji = get_emoji
+        self.get_accessory = get_accessory
 
     async def broadcast_playing(self, user_id: str, entry: PresenceEntry) -> None:
         push = FriendPresencePush(
             event="playing",
             friend_id=user_id,
             emoji=await self.get_emoji(user_id),
+            accessory=await self.get_accessory(user_id),
             track=entry.track,
             artist=entry.artist,
             is_playing=entry.is_playing,
@@ -137,6 +184,7 @@ class PresenceHub:
                 event="playing",
                 friend_id=friend_id,
                 emoji=await self.get_emoji(friend_id),
+                accessory=await self.get_accessory(friend_id),
                 track=entry.track,
                 artist=entry.artist,
                 is_playing=entry.is_playing,
@@ -183,6 +231,14 @@ async def ws_endpoint(websocket: WebSocket, user_id: str) -> None:
                 )
                 hub.store.update(user_id, entry)
                 await hub.broadcast_playing(user_id, entry)
+            elif isinstance(message, SetCustomization):
+                await directory.set_customization(
+                    user_id, message.accessory, message.room_theme
+                )
+                # 재생 중이면 바뀐 악세사리를 친구 화면에 즉시 반영
+                entry = hub.store.get(user_id)
+                if entry is not None:
+                    await hub.broadcast_playing(user_id, entry)
             else:  # StoppedReport
                 await hub.mark_stopped(user_id)
     except WebSocketDisconnect:

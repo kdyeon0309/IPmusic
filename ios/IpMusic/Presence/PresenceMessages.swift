@@ -40,6 +40,14 @@ struct StoppedReport: Encodable {
     var ts = PresenceMessage.nowISO8601()
 }
 
+/// 클라이언트 → 서버: 내 캐릭터 꾸미기 변경 (M2).
+struct SetCustomizationMessage: Encodable {
+    var type = "set_customization"
+    var accessory: String
+    var roomTheme: String
+    var ts = PresenceMessage.nowISO8601()
+}
+
 /// 서버 → 클라이언트: 친구 presence push.
 struct FriendPresencePush: Decodable {
     var type: String
@@ -47,6 +55,8 @@ struct FriendPresencePush: Decodable {
     var event: String
     var friendId: String
     var emoji: String
+    /// 악세사리 코드 (M2). 구버전 서버 페이로드엔 없을 수 있어 옵셔널.
+    var accessory: String?
     var track: String
     var artist: String
     var isPlaying: Bool
