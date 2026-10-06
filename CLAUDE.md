@@ -3,8 +3,8 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 프로젝트 상태
-- **현재 기획 단계 — 코드 없음.** 유일한 원본 문서: `docs/BRIEF.md` (컨셉·확정 결정·기술 제약의 전체 스펙). 상세·근거는 항상 거기서 확인.
-- 첫 구현 목표: **M0** ("노치에 내 음악이 산다" — 백엔드 없이 애플뮤직 now-playing을 Dynamic Island에 표시).
+- **M0 완료** (애플뮤직 now-playing → Dynamic Island, 실기기 검증). **M1 진행 중** ("친구 1명 등장" — FastAPI+WebSocket 백엔드 경유 친구 presence 표시). 원본 스펙: `docs/BRIEF.md`.
+- M1 잔여: 실기기 엔드투엔드 검증, (optional) Spotify 폴링 워커(WU8).
 
 ## 제품 한 줄
 친구의 실시간 음악 presence를 **캐릭터가 사는 공간 + Dynamic Island**로 보여주는 iOS 소셜 음악 앱. 파는 가치는 "친구 음악 보기"가 아니라 "음악으로 채워지는 나만의 공간".
@@ -23,17 +23,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - iOS 빌드: `cd ios && xcodebuild -project IpMusic.xcodeproj -scheme IpMusic -destination 'generic/platform=iOS Simulator' build`
 - 실기기 빌드: 위 명령에 `-destination 'platform=iOS,id=<기기ID>' -allowProvisioningUpdates` (기기 ID는 `xcrun devicectl list devices`)
 - 실기기 설치/실행: `xcrun devicectl device install app --device <기기ID> <DerivedData의 .app 경로>` / `xcrun devicectl device process launch --device <기기ID> com.kdyeon.ipmusic`
-- 빠른 타입 검사 (시뮬레이터 런타임 불필요): `cd ios && swiftc -typecheck -sdk $(xcrun --sdk iphonesimulator --show-sdk-path) -target arm64-apple-ios17.0-simulator IpMusic/*.swift IpMusic/LiveActivity/*.swift IpMusic/NowPlaying/*.swift Shared/*.swift`
+- 빠른 타입 검사 (시뮬레이터 런타임 불필요): `cd ios && swiftc -typecheck -sdk $(xcrun --sdk iphonesimulator --show-sdk-path) -target arm64-apple-ios17.0-simulator IpMusic/*.swift IpMusic/LiveActivity/*.swift IpMusic/NowPlaying/*.swift IpMusic/Networking/*.swift IpMusic/Presence/*.swift Shared/*.swift` (위젯은 `-parse-as-library IpMusicWidget/*.swift Shared/*.swift`)
 - iOS 테스트: _TBD_ (XCTest 예정)
-- 백엔드 실행: _TBD_ (`uvicorn`, M1에서)
-- 백엔드 테스트 / 단일 테스트: _TBD_ (pytest 예정)
-- 로컬 DB: _TBD_ (`docker compose up`)
+- 백엔드 실행: `cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0` (실기기 접속엔 `--host 0.0.0.0` 필수)
+- 백엔드 테스트: `cd backend && uv run pytest` (단일: `uv run pytest tests/test_ws_presence.py -k 이름`)
+- 로컬 DB: `cd backend && docker compose up -d` → 시드: `uv run python -m app.seed`
+- 친구 시뮬레이터 (솔로 테스트): `cd backend && uv run python scripts/friend_sim.py --track "밤편지" --artist "아이유"`
 
 ## 작업 방식
 - 큰 기능은 **Plan Mode (Shift+Tab)**로 계획부터 → 코드 엎는 낭비 방지.
 - 작업 단위 작게 → **완성마다 커밋** → `/clear` → 다음.
 - 큰 로그/파일 통째로 넣지 말고 잘라서(`... | tail -50`). 넓은 탐색은 서브에이전트로 오프로딩.
 - CLAUDE.md는 가볍게 유지. 장황한 설명은 `docs/`로 빼고 여기선 참조만.
+
+## 주의
+- **실기기는 `localhost` 불가** — `ios/IpMusic/AppConfig.swift`의 serverHost를 Mac LAN IP(`ipconfig getifaddr en0`)로. 시뮬레이터는 localhost 자동 사용.
+- **ContentState(`Shared/MusicActivityAttributes.swift`) 변경 시 앱+위젯 동시 재빌드** — Codable 불일치면 Live Activity 갱신이 조용히 실패.
+- M1 인증 없음: 내 user_id는 `alice` 고정(AppConfig), 친구 시뮬레이터는 `bob`. DB 시드: `app/seed.py`.
 
 ## 하지 말 것
 - 타인 now-playing을 Spotify API로 **직접 조회**하지 말 것 (자가보고 원칙 위반 + 쿼터/차단).
