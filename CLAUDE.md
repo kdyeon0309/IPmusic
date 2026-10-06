@@ -21,6 +21,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 개발 명령
 - iOS 프로젝트 생성 (project.yml 변경 시 재실행): `cd ios && xcodegen generate`
 - iOS 빌드: `cd ios && xcodebuild -project IpMusic.xcodeproj -scheme IpMusic -destination 'generic/platform=iOS Simulator' build`
+- 실기기 빌드: 위 명령에 `-destination 'platform=iOS,id=<기기ID>' -allowProvisioningUpdates` (기기 ID는 `xcrun devicectl list devices`)
+- 실기기 설치/실행: `xcrun devicectl device install app --device <기기ID> <DerivedData의 .app 경로>` / `xcrun devicectl device process launch --device <기기ID> com.kdyeon.ipmusic`
 - 빠른 타입 검사 (시뮬레이터 런타임 불필요): `cd ios && swiftc -typecheck -sdk $(xcrun --sdk iphonesimulator --show-sdk-path) -target arm64-apple-ios17.0-simulator IpMusic/*.swift IpMusic/LiveActivity/*.swift IpMusic/NowPlaying/*.swift Shared/*.swift`
 - iOS 테스트: _TBD_ (XCTest 예정)
 - 백엔드 실행: _TBD_ (`uvicorn`, M1에서)
