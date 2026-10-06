@@ -3,8 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 프로젝트 상태
-- **M0 완료** (애플뮤직 now-playing → Dynamic Island, 실기기 검증). **M1 진행 중** ("친구 1명 등장" — FastAPI+WebSocket 백엔드 경유 친구 presence 표시). 원본 스펙: `docs/BRIEF.md`.
-- M1 잔여: 실기기 엔드투엔드 검증, (optional) Spotify 폴링 워커(WU8).
+- **M0·M1 완료** (M1: 친구 presence가 백엔드 경유로 노치/앱에 등장·퇴장 — 실기기 엔드투엔드 검증 2026-10-07). 원본 스펙: `docs/BRIEF.md`. 다음: **M2** (캐릭터 꾸미기·말풍선·곡 추천·공간 UI) 또는 M1 잔여 optional인 Spotify 폴링 워커(WU8).
 
 ## 제품 한 줄
 친구의 실시간 음악 presence를 **캐릭터가 사는 공간 + Dynamic Island**로 보여주는 iOS 소셜 음악 앱. 파는 가치는 "친구 음악 보기"가 아니라 "음악으로 채워지는 나만의 공간".

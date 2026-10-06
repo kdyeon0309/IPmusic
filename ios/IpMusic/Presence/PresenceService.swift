@@ -20,6 +20,11 @@ final class PresenceService {
 
     private let client = WebSocketClient()
     private var heartbeatTask: Task<Void, Never>?
+    private var reconcileTask: Task<Void, Never>?
+
+    /// 친구별 마지막 push 수신 시각. 재접속 후 스냅샷으로 재확인되지 않은(=그 사이 퇴장한)
+    /// 친구를 정리하는 데 쓴다.
+    private var lastPushAt: [String: Date] = [:]
 
     /// 마지막 자가보고. heartbeat와 재연결 직후 재전송에 쓴다.
     private var lastReport: NowPlayingReport?
@@ -33,18 +38,41 @@ final class PresenceService {
         }
         client.connect(to: AppConfig.wsURL)
         startHeartbeat()
+        reconcileAfterSnapshot()
     }
 
-    /// stopped를 보고하고 연결을 닫는다. 백그라운드 진입/세션 종료 시 호출.
-    func disconnect() async {
+    /// 접속 직후 서버가 보내는 스냅샷이 도착할 시간을 준 뒤, 스냅샷으로 재확인되지
+    /// 않은 친구(백그라운드 사이에 퇴장한 친구)를 목록에서 정리한다.
+    private func reconcileAfterSnapshot() {
+        let connectedAt = Date()
+        reconcileTask?.cancel()
+        reconcileTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard let self, !Task.isCancelled else { return }
+            self.friends.removeAll { friend in
+                (self.lastPushAt[friend.id] ?? .distantPast) < connectedAt
+            }
+        }
+    }
+
+    /// stopped를 보고하고 연결을 닫는다.
+    /// - Parameter clearFriends: true면 친구 목록도 비운다 (세션 종료 시).
+    ///   백그라운드 진입 시엔 false — 노치(Live Activity)는 앱이 없는 동안에도 떠 있으므로,
+    ///   여기서 비우면 "노치를 보는 순간 친구가 사라지는" 현상이 생긴다.
+    ///   대신 포그라운드 복귀 시 서버 스냅샷으로 최신 상태가 복구된다.
+    func disconnect(clearFriends: Bool = false) async {
         heartbeatTask?.cancel()
         heartbeatTask = nil
+        reconcileTask?.cancel()
+        reconcileTask = nil
         lastReport = nil
         if isConnected {
             await send(StoppedReport())
         }
         client.disconnect()
-        friends = []
+        if clearFriends {
+            friends = []
+        }
     }
 
     /// 내 now-playing을 서버에 보고한다. 곡/재생 상태가 바뀔 때마다 호출.
@@ -90,6 +118,8 @@ final class PresenceService {
         guard let data = text.data(using: .utf8),
               let push = try? PresenceMessage.decoder.decode(FriendPresencePush.self, from: data),
               push.type == "friend_presence" else { return }
+
+        lastPushAt[push.friendId] = Date()
 
         if push.event == "stopped" {
             friends.removeAll { $0.id == push.friendId }

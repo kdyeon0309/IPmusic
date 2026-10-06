@@ -58,7 +58,7 @@ struct ContentView: View {
             if !isActive && isRealSession {
                 isRealSession = false
                 monitor.stop()
-                Task { await presence.disconnect() }
+                Task { await presence.disconnect(clearFriends: true) }
             }
         }
         // 포그라운드 복귀 시 재연결, 백그라운드 진입 시 stopped 보고 후 연결 종료
@@ -146,7 +146,7 @@ struct ContentView: View {
     private func endRealSession() async {
         isRealSession = false
         monitor.stop()
-        await presence.disconnect()
+        await presence.disconnect(clearFriends: true)
         await manager.end()
     }
 
@@ -205,6 +205,8 @@ struct ContentView: View {
             presence.connect()
             reportToServer()
         case .background:
+            // 연결만 닫고 친구 목록은 유지 — 노치(Live Activity)는 백그라운드에도 떠 있다.
+            // 복귀 시 connect()의 스냅샷+reconcile이 최신 상태로 맞춘다.
             Task { await presence.disconnect() }
         default:
             break
