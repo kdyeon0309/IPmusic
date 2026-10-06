@@ -3,7 +3,9 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 프로젝트 상태
-- **M0·M1 완료** (M1: 친구 presence가 백엔드 경유로 노치/앱에 등장·퇴장 — 실기기 엔드투엔드 검증 2026-10-07). 원본 스펙: `docs/BRIEF.md`. 다음: **M2** (캐릭터 꾸미기·말풍선·곡 추천·공간 UI) 또는 M1 잔여 optional인 Spotify 폴링 워커(WU8).
+- **M0·M1 완료** (M1 실기기 검증 2026-10-07). **M2 구현 완료 2026-10-07** (공간 UI·캐릭터 꾸미기·말풍선·곡 추천 — pytest/빌드/WS 레벨 검증 완료, **실기기 엔드투엔드 검증 대기**). 원본 스펙: `docs/BRIEF.md`. 다음: M2 실기기 검증 → **M3**(친구 시스템+인증+Spotify OAuth, 단톡, 통계) 또는 Spotify 폴링 워커(WU8).
+- M2 WS 프로토콜: C→S `now_playing(+store_id)/stopped/set_customization/bubble/recommend/recommendation_ack`, S→C `friend_presence(+accessory)/friend_bubble/friend_recommendation`. 정의: `backend/app/schemas.py` ↔ `ios/IpMusic/Presence/PresenceMessages.swift` (항상 짝으로 수정).
+- 말풍선은 비영속(오프라인 drop, M3 메신저에서 영속화), 곡 추천은 DB 영속(접속 시 pending 전달+ack). 말풍선/추천은 Live Activity를 건드리지 않음(업데이트 예산).
 
 ## 제품 한 줄
 친구의 실시간 음악 presence를 **캐릭터가 사는 공간 + Dynamic Island**로 보여주는 iOS 소셜 음악 앱. 파는 가치는 "친구 음악 보기"가 아니라 "음악으로 채워지는 나만의 공간".
@@ -27,7 +29,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 백엔드 실행: `cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0` (실기기 접속엔 `--host 0.0.0.0` 필수)
 - 백엔드 테스트: `cd backend && uv run pytest` (단일: `uv run pytest tests/test_ws_presence.py -k 이름`)
 - 로컬 DB: `cd backend && docker compose up -d` → 시드: `uv run python -m app.seed`
-- 친구 시뮬레이터 (솔로 테스트): `cd backend && uv run python scripts/friend_sim.py --track "밤편지" --artist "아이유"`
+  - **기존 테이블에 컬럼이 추가된 경우** `create_all`은 ALTER 불가 → `docker compose down -v && docker compose up -d && uv run python -m app.seed`로 재생성 (Alembic은 M3에서 도입 예정)
+- 친구 시뮬레이터 (솔로 테스트): `cd backend && uv run python scripts/friend_sim.py --track "밤편지" --artist "아이유"` (그 외 `--listen` / `--bubble "안녕!"` / `--recommend --store-id …` / `--ack <id>`)
 
 ## 작업 방식
 - 큰 기능은 **Plan Mode (Shift+Tab)**로 계획부터 → 코드 엎는 낭비 방지.

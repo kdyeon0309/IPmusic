@@ -103,8 +103,20 @@ private struct ExpandedBottomView: View {
     var body: some View {
         if let friend {
             HStack(spacing: 6) {
-                Text(friend.emoji)
-                    .font(.title3)
+                // M2: 악세사리 오버레이 (expanded에서만 — compact는 좁아 클리핑 위험)
+                ZStack {
+                    Text(friend.emoji)
+                        .font(.title3)
+                    if let accessory = CharacterAccessory(rawValue: friend.accessory ?? ""),
+                       let overlay = accessory.overlayEmoji {
+                        Text(overlay)
+                            .font(.system(size: 10))
+                            .offset(
+                                x: 22 * accessory.offsetRatio.width,
+                                y: 22 * accessory.offsetRatio.height
+                            )
+                    }
+                }
                 Text("\(friend.trackTitle) — \(friend.artistName)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
