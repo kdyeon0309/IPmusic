@@ -20,20 +20,48 @@ logger = logging.getLogger("ipmusic.ws")
 
 router = APIRouter()
 
-# WU3에서 DB 조회로 교체 — 그 전까지는 하드코딩 친구쌍/이모지
-FRIENDS: dict[str, list[str]] = {"alice": ["bob"], "bob": ["alice"]}
-EMOJIS: dict[str, str] = {"alice": "🐰", "bob": "🐸"}
-
 GetFriends = Callable[[str], Awaitable[list[str]]]
 GetEmoji = Callable[[str], Awaitable[str]]
 
 
+class Directory:
+    """users/friendships 조회 — 시작 시 DB에서 로드하고, DB가 없으면 개발용 기본값 유지.
+
+    친구 수가 적은 M1에선 전체를 메모리에 올려두는 편이 단순하다.
+    """
+
+    def __init__(self) -> None:
+        self.friends: dict[str, list[str]] = {"alice": ["bob"], "bob": ["alice"]}
+        self.emojis: dict[str, str] = {"alice": "🐰", "bob": "🐸"}
+
+    async def load_from_db(self) -> None:
+        from sqlalchemy import select
+
+        from app.db import SessionLocal
+        from app.models import Friendship, User
+
+        async with SessionLocal() as session:
+            users = (await session.execute(select(User))).scalars().all()
+            pairs = (await session.execute(select(Friendship))).scalars().all()
+        emojis = {u.id: u.character_emoji for u in users}
+        friends: dict[str, list[str]] = {u.id: [] for u in users}
+        for pair in pairs:
+            friends.setdefault(pair.user_a, []).append(pair.user_b)
+            friends.setdefault(pair.user_b, []).append(pair.user_a)
+        self.emojis = emojis
+        self.friends = friends
+        logger.info("directory loaded from DB: %d users, %d pairs", len(users), len(pairs))
+
+
+directory = Directory()
+
+
 async def _default_get_friends(user_id: str) -> list[str]:
-    return FRIENDS.get(user_id, [])
+    return directory.friends.get(user_id, [])
 
 
 async def _default_get_emoji(user_id: str) -> str:
-    return EMOJIS.get(user_id, "🎵")
+    return directory.emojis.get(user_id, "🎵")
 
 
 class ConnectionManager:
