@@ -18,10 +18,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **음악 소스 비대칭**: 애플뮤직은 iOS 기기에서 **로컬** 감지(MusicKit `systemMusicPlayer`). Spotify는 **백엔드가 Web API 폴링**(`/me/player/currently-playing`). iOS는 서드파티 앱 로컬 감지 불가.
 - **Dynamic Island = Live Activities**(ActivityKit, iOS 16.1+). 영구 위젯이 아니라 **세션형**(최대 8h). 페이로드 **4KB** 제한 + 업데이트 빈도 예산 → *곡 변경 / 친구 접속·이탈* 시에만 갱신.
 
-## 개발 명령 (코드 생기면 이 섹션을 실제 명령으로 채울 것)
-- iOS 빌드/실행: _TBD_ (Xcode / `xcodebuild`)
+## 개발 명령
+- iOS 프로젝트 생성 (project.yml 변경 시 재실행): `cd ios && xcodegen generate`
+- iOS 빌드: `cd ios && xcodebuild -project IpMusic.xcodeproj -scheme IpMusic -destination 'generic/platform=iOS Simulator' build`
+- 빠른 타입 검사 (시뮬레이터 런타임 불필요): `cd ios && swiftc -typecheck -sdk $(xcrun --sdk iphonesimulator --show-sdk-path) -target arm64-apple-ios17.0-simulator IpMusic/*.swift IpMusic/LiveActivity/*.swift IpMusic/NowPlaying/*.swift Shared/*.swift`
 - iOS 테스트: _TBD_ (XCTest 예정)
-- 백엔드 실행: _TBD_ (`uvicorn`)
+- 백엔드 실행: _TBD_ (`uvicorn`, M1에서)
 - 백엔드 테스트 / 단일 테스트: _TBD_ (pytest 예정)
 - 로컬 DB: _TBD_ (`docker compose up`)
 
