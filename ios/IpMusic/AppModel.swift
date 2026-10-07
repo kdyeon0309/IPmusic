@@ -14,6 +14,12 @@ final class AppModel {
     let manager = LiveActivityManager()
     let monitor = NowPlayingMonitor()
     let presence = PresenceService()
+    /// 세션 중 백그라운드에서도 감지/노치 갱신이 돌도록 앱을 깨워두는 무음 오디오.
+    let keepAlive = BackgroundKeepAlive()
+
+    /// 백그라운드에선 시스템 알림이 안 오므로 주기적으로 플레이어를 직접 읽는다.
+    /// (포그라운드에선 알림이 먼저 반영하므로 이 폴링은 사실상 no-op)
+    private var pollTask: Task<Void, Never>?
 
     /// 현재 Live Activity가 실제 감지 세션인지(목 데모가 아니라) 여부.
     private(set) var isRealSession = false
@@ -52,6 +58,8 @@ final class AppModel {
             }
             presence.connect()
             reportToServer()
+            keepAlive.start()
+            startPolling()
         } else {
             monitor.stop()
         }
@@ -59,6 +67,8 @@ final class AppModel {
 
     func endSession() async {
         isRealSession = false
+        stopPolling()
+        keepAlive.stop()
         monitor.stop()
         await presence.disconnect(clearFriends: true)
         await manager.end()
@@ -68,8 +78,26 @@ final class AppModel {
     func handleSessionEnded() {
         guard isRealSession else { return }
         isRealSession = false
+        stopPolling()
+        keepAlive.stop()
         monitor.stop()
         Task { await presence.disconnect(clearFriends: true) }
+    }
+
+    /// 5초마다 플레이어 상태를 재확인한다 — 백그라운드 곡 변경을 노치에 반영하는 경로.
+    private func startPolling() {
+        pollTask?.cancel()
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                self?.monitor.refreshNow()
+            }
+        }
+    }
+
+    private func stopPolling() {
+        pollTask?.cancel()
+        pollTask = nil
     }
 
     // MARK: - 동기화
@@ -166,12 +194,27 @@ final class AppModel {
         guard isRealSession else { return }
         switch phase {
         case .active:
-            presence.connect()
+            // 백그라운드 동안 놓친 곡 변경을 따라잡는다 (시스템 알림은 포그라운드에서만 옴).
+            // currentTrack이 실제로 바뀌면 .onChange → syncActivityWithMonitor가 추가로 돈다.
+            monitor.refreshNow()
+            // keep-alive로 연결이 유지돼 있으면 재연결하지 않는다 — 불필요한 재연결은
+            // 스냅샷 reconcile이 친구를 잠깐 지우는 깜빡임을 만든다.
+            if !presence.isConnected {
+                presence.connect()
+            }
             reportToServer()
+            // 복귀 직후엔 미디어 데몬 동기화가 늦어 stale 값을 읽을 수 있다 → 잠시 뒤 재확인
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(0.5))
+                self?.monitor.refreshNow()
+            }
         case .background:
-            // 연결만 닫고 친구 목록은 유지 — 노치(Live Activity)는 백그라운드에도 떠 있다.
-            // 복귀 시 connect()의 스냅샷+reconcile이 최신 상태로 맞춘다.
-            Task { await presence.disconnect() }
+            // keep-alive가 돌고 있으면 앱이 백그라운드에서도 살아 있으므로 연결을 유지한다
+            // → 친구 등장/퇴장·내 곡 변경이 백그라운드에서도 노치에 반영된다.
+            // keep-alive가 실패한 경우에만 M1 방식으로 연결을 닫는다 (복귀 시 스냅샷 복구).
+            if !keepAlive.isActive {
+                Task { await presence.disconnect() }
+            }
         default:
             break
         }

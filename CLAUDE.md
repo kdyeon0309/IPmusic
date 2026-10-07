@@ -3,7 +3,9 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 프로젝트 상태
-- **M0·M1 완료** (M1 실기기 검증 2026-10-07). **M2 구현 완료 2026-10-07** (공간 UI·캐릭터 꾸미기·말풍선·곡 추천 — pytest/빌드/WS 레벨 검증 완료, **실기기 엔드투엔드 검증 대기**). 원본 스펙: `docs/BRIEF.md`. 다음: M2 실기기 검증 → **M3**(친구 시스템+인증+Spotify OAuth, 단톡, 통계) 또는 Spotify 폴링 워커(WU8).
+- **M0·M1·M2 완료** (M2 실기기 엔드투엔드 검증 2026-10-08 — 공간 UI·캐릭터 꾸미기·말풍선·곡 추천·백그라운드 노치 갱신). 원본 스펙: `docs/BRIEF.md`. **App Store 출시 목표** — 유료 Apple Developer 등록 예정. 다음: **M3**(친구 시스템+인증+Spotify OAuth, 단톡, 통계, APNs 전환) 또는 Spotify 폴링 워커(WU8).
+- **백그라운드 keep-alive는 임시**: 세션 중 무음 오디오(`UIBackgroundModes: audio`, `BackgroundKeepAlive.swift`)로 앱을 깨워 곡 변경·친구 presence를 백그라운드에서도 노치에 반영. **App Store 심사 거절 리스크(가이드라인 2.5.4)** → 유료 계정 확보 후 ActivityKit push(APNs)로 교체할 것.
+- **노치 자리 경쟁**: 다른 Live Activity(통화, 애플뮤직 재생 등)와 공존하면 미니멀 모드(동그라미 1개)로 축소됨 → 미니멀 뷰는 친구를 우선 표시, 잠금화면 카드에도 친구 줄 포함.
 - M2 WS 프로토콜: C→S `now_playing(+store_id)/stopped/set_customization/bubble/recommend/recommendation_ack`, S→C `friend_presence(+accessory)/friend_bubble/friend_recommendation`. 정의: `backend/app/schemas.py` ↔ `ios/IpMusic/Presence/PresenceMessages.swift` (항상 짝으로 수정).
 - 말풍선은 비영속(오프라인 drop, M3 메신저에서 영속화), 곡 추천은 DB 영속(접속 시 pending 전달+ack). 말풍선/추천은 Live Activity를 건드리지 않음(업데이트 예산).
 

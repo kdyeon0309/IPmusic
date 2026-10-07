@@ -89,6 +89,15 @@ final class NowPlayingMonitor {
         isPlaying = false
     }
 
+    /// 플레이어 상태를 강제로 다시 읽는다.
+    ///
+    /// 시스템 알림은 앱이 포그라운드일 때만 오므로, 백그라운드에 있는 동안 곡이 바뀌면
+    /// (예: 애플뮤직 앱으로 전환해 곡 변경) 놓친다 → 포그라운드 복귀 시 이걸 호출해 따라잡는다.
+    func refreshNow() {
+        guard isMonitoring else { return }
+        refresh()
+    }
+
     /// 플레이어에서 현재 트랙/재생 여부를 다시 읽는다.
     private func refresh() {
         isPlaying = player.playbackState == .playing

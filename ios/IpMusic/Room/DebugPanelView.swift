@@ -60,6 +60,22 @@ struct DebugPanelView: View {
                     .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
             }
+
+            // 백그라운드 keep-alive 상태 (M2 임시 — 출시 전 APNs로 교체 예정)
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(app.keepAlive.isActive ? .green : .gray)
+                    .frame(width: 8, height: 8)
+                Text(app.keepAlive.isActive ? "백그라운드 유지 중 (무음 오디오)" : "백그라운드 유지 꺼짐")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            if let err = app.keepAlive.lastError {
+                Text(err)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
         }
     }
 
